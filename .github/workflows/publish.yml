@@ -40,6 +40,8 @@ jobs:
 
             # Publish when using '[publish binary]' keywords
             - name: Publish
+              env:
+                  NODE_PRE_GYP_GITHUB_TOKEN: ${{ secrets.NODE_PRE_GYP_GITHUB_TOKEN }}
               if: "contains(github.event.head_commit.message, '[publish binary]')"
               run: |
                   COMMIT_MESSAGE=$(git log --format=%B --no-merges -n 1 | tr -d '\n') \
