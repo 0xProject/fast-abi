@@ -1,10 +1,6 @@
 name: CI
 
-on:
-    push:
-        branches: [master]
-    pull_request:
-        branches: [master]
+on: push
 
 env:
     CARGO_TERM_COLOR: always
@@ -38,11 +34,22 @@ jobs:
             #- name: Test
             #  run: npm test
 
-            # Publish when using '[publish binary]' keywords
-            - name: Publish
+            - name: Package
+              run: yarn package
+
+            - name: Release
+              uses: softprops/action-gh-release@v1
+              if: startsWith(github.ref, 'refs/tags/')
+              with:
+                  files: build/**/*.tar.gz
               env:
-                  NODE_PRE_GYP_GITHUB_TOKEN: ${{ secrets.NODE_PRE_GYP_GITHUB_TOKEN }}
-              if: "contains(github.event.head_commit.message, '[publish binary]')"
-              run: |
-                  COMMIT_MESSAGE=$(git log --format=%B --no-merges -n 1 | tr -d '\n') \
-                  npm run upload-binary
+                  GITHUB_TOKEN: ${{ secrets.NODE_PRE_GYP_GITHUB_TOKEN }}
+
+            # Publish when using '[publish binary]' keywords
+            # - name: Publish
+            #   env:
+            #       NODE_PRE_GYP_GITHUB_TOKEN: ${{ secrets.NODE_PRE_GYP_GITHUB_TOKEN }}
+            #   if: "contains(github.event.head_commit.message, '[publish binary]')"
+            #   run: |
+            #       COMMIT_MESSAGE=$(git log --format=%B --no-merges -n 1 | tr -d '\n') \
+            #       npm run upload-binary
