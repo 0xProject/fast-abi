@@ -11,7 +11,7 @@
         "uuid": "^8.3.2"
     },
     "scripts": {
-        "build": "tsc -b && neon build",
+        "build": "tsc -b && neon build --release",
         "build:ts": "tsc -b",
         "build:rs": "neon build",
         "watch": "tsc -w -p tsconfig.json",

@@ -11,7 +11,7 @@ jobs:
 
         strategy:
             matrix:
-                node-version: [14.x]
+                node-version: [14.x, 12.x]
                 os: [ubuntu-latest, macos-latest]
 
         runs-on: ${{ matrix.os }}
@@ -34,22 +34,22 @@ jobs:
             #- name: Test
             #  run: npm test
 
-            - name: Package
-              run: yarn package
+            #- name: Package
+            #  run: yarn package
 
-            - name: Release
-              uses: softprops/action-gh-release@v1
-              if: startsWith(github.ref, 'refs/tags/')
-              with:
-                  files: build/**/*.tar.gz
-              env:
-                  GITHUB_TOKEN: ${{ secrets.NODE_PRE_GYP_GITHUB_TOKEN }}
+            #- name: Release
+            #  uses: softprops/action-gh-release@v1
+            #  if: startsWith(github.ref, 'refs/tags/')
+            #  with:
+            #      files: build/**/*.tar.gz
+            #  env:
+            #      GITHUB_TOKEN: ${{ secrets.NODE_PRE_GYP_GITHUB_TOKEN }}
 
             # Publish when using '[publish binary]' keywords
-            # - name: Publish
-            #   env:
-            #       NODE_PRE_GYP_GITHUB_TOKEN: ${{ secrets.NODE_PRE_GYP_GITHUB_TOKEN }}
-            #   if: "contains(github.event.head_commit.message, '[publish binary]')"
-            #   run: |
-            #       COMMIT_MESSAGE=$(git log --format=%B --no-merges -n 1 | tr -d '\n') \
-            #       npm run upload-binary
+            - name: Publish
+              env:
+                  NODE_PRE_GYP_GITHUB_TOKEN: ${{ secrets.NODE_PRE_GYP_GITHUB_TOKEN }}
+              if: "contains(github.event.head_commit.message, '[publish binary]')"
+              run: |
+                  COMMIT_MESSAGE=$(git log --format=%B --no-merges -n 1 | tr -d '\n') \
+                  npm run upload-binary
