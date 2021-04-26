@@ -1,30 +1,49 @@
 {
-  "name": "fast-abi",
-  "version": "0.0.1",
-  "description": "",
-  "main": "lib/index.js",
-  "author": "Jacob Evans <jacob@dekz.net>",
-  "license": "MIT",
-  "dependencies": {
-    "neon-cli": "^0.8.0",
-    "uuid": "^8.3.2"
-  },
-  "scripts": {
-    "build": "tsc -b && neon build",
-    "build:ts": "tsc -b",
-    "build:rs": "neon build",
-    "watch": "tsc -w -p tsconfig.json",
-    "install": "neon build"
-  },
-  "devDependencies": {
-    "@types/mocha": "^5.2.7",
-    "@types/node": "12.12.54",
-    "chai": "^4.0.1",
-    "chai-as-promised": "^7.1.0",
-    "chai-bignumber": "^3.0.0",
-    "ethereum-types": "^3.4.1",
-    "mocha": "^6.2.0",
-    "tslint": "5.11.0",
-    "typescript": "4.2.2"
-  }
+    "name": "fast-abi",
+    "version": "0.0.1",
+    "description": "",
+    "main": "lib/index.js",
+    "author": "Jacob Evans <jacob@dekz.net>",
+    "license": "MIT",
+    "dependencies": {
+        "neon-cli": "^0.8.0",
+        "uuid": "^8.3.2",
+        "node-pre-gyp": "^0.17.0",
+        "node-pre-gyp-github": "^1.4.3"
+    },
+    "scripts": {
+        "build": "tsc -b && neon build",
+        "build:ts": "tsc -b",
+        "build:rs": "neon build",
+        "watch": "tsc -w -p tsconfig.json",
+        "install": "node-pre-gyp install --fallback-to-build=false || neon build --release",
+        "package": "node-pre-gyp package",
+        "upload-binary": "node-pre-gyp package && node-pre-gyp-github publish"
+    },
+    "devDependencies": {
+        "@types/mocha": "^5.2.7",
+        "@types/node": "12.12.54",
+        "chai": "^4.0.1",
+        "chai-as-promised": "^7.1.0",
+        "chai-bignumber": "^3.0.0",
+        "ethereum-types": "^3.4.1",
+        "mocha": "^6.2.0",
+        "tslint": "5.11.0",
+        "typescript": "4.2.2"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/0xproject/fast-abi.git"
+    },
+    "files": [
+        "lib"
+    ],
+    "binary": {
+        "module_name": "index",
+        "host": "https://github.com/0xproject/fast-abi/releases/download/",
+        "remote_path": "{version}",
+        "package_name": "{node_abi}-{platform}-{arch}.tar.gz",
+        "module_path": "./native",
+        "pkg_path": "."
+    }
 }

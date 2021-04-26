@@ -1,0 +1,46 @@
+name: CI
+
+on:
+    push:
+        branches: [master]
+    pull_request:
+        branches: [master]
+
+env:
+    CARGO_TERM_COLOR: always
+
+jobs:
+    test:
+        name: Test
+
+        strategy:
+            matrix:
+                node-version: [14.x]
+                os: [ubuntu-latest, macos-latest]
+
+        runs-on: ${{ matrix.os }}
+
+        steps:
+            - name: Checkout the repo
+              uses: actions/checkout@v2
+            - name: Set up Rust
+              uses: actions-rs/toolchain@v1
+              with:
+                  toolchain: stable
+            - name: Set up Node.js ${{ matrix.node-version }}
+              uses: actions/setup-node@v2
+              with:
+                  node-version: ${{ matrix.node-version }}
+
+            - name: yarn
+              run: yarn install
+
+            #- name: Test
+            #  run: npm test
+
+            # Publish when using '[publish binary]' keywords
+            - name: Publish
+              if: "contains(github.event.head_commit.message, '[publish binary]')"
+              run: |
+                  COMMIT_MESSAGE=$(git log --format=%B --no-merges -n 1 | tr -d '\n') \
+                  npm run upload-binary
