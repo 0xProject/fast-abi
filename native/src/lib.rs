@@ -111,7 +111,8 @@ fn tokenize_struct(
     if value.is_a::<JsArray>() {
         let arr = value.downcast::<JsArray>().unwrap().to_vec(cx).unwrap();
         for (_i, v) in arr.iter().enumerate() {
-            let token = tokenize(params.next().ok_or(Error::InvalidData)?, v, cx)?;
+            let p = params.next().ok_or(Error::InvalidData)?;
+            let token = tokenize(p, v, cx)?;
             result.push(token)
         }
     } else {
@@ -163,7 +164,6 @@ fn tokenize_out<'cx>(
     };
     Ok(value)
 }
-
 
 fn parse_tokens(
     params: &[(ParamType, &Handle<JsValue>)],

@@ -5,17 +5,10 @@ var uuid = require('uuid');
 
 var addon = require('../native');
 
-function isObject(arg: any): arg is Object {
-    return arg.constructor.name === 'Object';
-}
-
-function isString(arg: any): arg is String {
-    return typeof arg === 'string' || arg instanceof String;
-}
-
 interface Opts {
     BigNumber: any;
 }
+
 export class FastABI {
     public static ping() {
         addon.hello();
@@ -33,8 +26,8 @@ export class FastABI {
     }
 
     public encodeInput(fnName: string, values: any[]): string {
-        const found = this._abi.filter((a) => a.name === fnName);
-        const args = this._convertArgs(values, found[0]);
+        const found = this._abi.filter((a) => a.name === fnName)[0];
+        const args = this._serializeArgsOut(values, found.inputs);
         try {
             const encoded = addon.encodeInput(this._key, fnName, args);
             return `0x${encoded}`;
@@ -46,18 +39,22 @@ export class FastABI {
     public decodeInput(fnName: string, output: string): any {
         const found = this._abi.filter((a) => a.name === fnName)[0];
         const decoded = addon.decodeInput(this._key, fnName, output);
-        return this._convertDataItems(found.inputs, decoded);
+        return this._deserializeResultsIn(found.inputs, decoded);
     }
 
     public decodeOutput(fnName: string, output: string): any {
         const found = this._abi.filter((a) => a.name === fnName)[0];
         const decoded = addon.decodeOutput(this._key, fnName, output);
-        return this._convertDataItems(found.outputs, decoded);
+        return this._deserializeResultsIn(found.outputs, decoded);
     }
 
-    private _convertDataItem(abi: DataItem, value: any): any {
+    private _deserializeResultIn(abi: DataItem, value: any): any {
         if (abi.type.indexOf('[]') !== -1) {
-            return (value as any[]).map((v) => this._convertDataItem({ ...abi, type: abi.type.split('[]')[0] }, v));
+            // Pop off the last [] and serialize each sub value
+            let type = abi.type.split('[]');
+            type.pop();
+            let newType = type.join('[]'); // e.g address[][] -> address[]
+            return (value as any[]).map((v) => this._deserializeResultIn({ ...abi, type: newType }, v));
         }
         if (abi.type.indexOf('int') !== -1) {
             return new this._opts.BigNumber(value);
@@ -65,53 +62,51 @@ export class FastABI {
         if (abi.type === 'tuple' && abi.components) {
             const output: any = {};
             for (const [i, c] of Object.entries(abi.components)) {
-                output[c.name] = this._convertDataItem(c, value[parseInt(i)]);
+                output[c.name] = this._deserializeResultIn(c, value[parseInt(i)]);
             }
             return output;
         }
         return value;
     }
 
-    private _convertDataItems(abi: DataItem[], values: any[]): any {
+    private _deserializeResultsIn(abis: DataItem[], values: any[]): any {
         const output: any = [];
-        for (const [i, v] of Object.entries(abi)) {
-            output.push(this._convertDataItem(v, values[parseInt(i)]));
+        for (const [i, v] of Object.entries(abis)) {
+            output.push(this._deserializeResultIn(v, values[parseInt(i)]));
         }
-        if (abi.length === 1) {
+        if (abis.length === 1) {
             return output[0];
         }
         return output;
     }
 
-    private _convertArg(arg: any): any {
+    // Convert the javascript arguments into the FastAbi preferred arguments
+    private _serializeArgsOut(abis: DataItem[], args: any[]): any[] {
+        return abis.map((abi, i) => this._serializeArgOut(args[i], abi));
+    }
+
+    private _serializeArgOut(abi: DataItem, arg: any): any {
         if (arg === undefined) {
             throw new Error(`Encountered undefined argument`);
         }
-        // Remove any prepending 0x
-        if (typeof arg === 'string' || arg instanceof String) {
-            arg;
+
+        if (abi.type.indexOf('[]') !== -1) {
+            // Pop off the last [] and serialize each sub value
+            let type = abi.type.split('[]');
+            type.pop();
+            let newType = type.join('[]'); // e.g address[][] -> address[]
+            return (arg as any[]).map((v) => this._serializeArgOut({ ...abi, type: newType }, v));
         }
 
-        if (Array.isArray(arg)) {
-            return arg.map((a) => this._convertArg(a));
-        }
-
-        if (arg.constructor.name === 'Object') {
-            return Object.values(arg).map((a) => this._convertArg(a));
+        // Convert from { b: 2, a: 1 } into a component ordered value array, [1,2]
+        if (abi.type === 'tuple' && abi.components) {
+            const output: any[] = [];
+            for (const [_i, c] of Object.entries(abi.components)) {
+                output.push(this._serializeArgOut(c, arg[c.name]));
+            }
+            return output;
         }
 
         return arg.toString();
-    }
-
-    private _convertArgs(args: any[], abi: MethodAbi): any[] {
-        return args.map((a, i) => {
-            if (isObject(a)) {
-                // Ensure the values are in the correct order
-                const clone: any = {};
-                abi.inputs[i].components!.map((k) => (clone[k.name] = a[k.name]));
-                return this._convertArg(clone);
-            }
-            return this._convertArg(a);
-        });
     }
 }
