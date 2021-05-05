@@ -4,7 +4,7 @@ use ethabi::{
     token::{LenientTokenizer, Token, Tokenizer},
     Contract, Error, ParamType,
 };
-use neon::{prelude::*, object::This};
+use neon::prelude::*;
 use result_ext::ResultExt;
 
 pub struct Coder(Contract);
@@ -43,7 +43,7 @@ declare_types! {
     pub class JsCoder for Coder {
         init(mut cx) {
             Coder::new(cx.argument::<JsString>(0)?.value().as_ref())
-            .or_else(|e| cx.throw_error(format!("{}", e)))
+            .or_throw(&mut cx)
         }
 
         method encodeInput(mut cx) {
@@ -91,8 +91,8 @@ declare_types! {
     }
 }
 
-fn tokens_to_js<'cx, T: This>(
-    cx: &mut CallContext<'cx, T>,
+fn tokens_to_js<'cx, C: Context<'cx>>(
+    cx: &mut C,
     tokens: &[Token],
 ) -> JsResult<'cx, JsValue> {
     let result = JsArray::new(cx, tokens.len() as u32);
@@ -162,10 +162,10 @@ fn tokenize_int(value: &Handle<JsValue>) -> Result<[u8; 32], Error> {
     LenientTokenizer::tokenize_int(&str)
 }
 
-fn tokenize_array<T: neon::object::This>(
+fn tokenize_array<'cx, C: Context<'cx>>(
     value: &Handle<JsValue>,
     param: &ParamType,
-    cx: &mut CallContext<'_, T>,
+    cx: &mut C,
 ) -> Result<Vec<Token>, Error> {
     let arr = value.downcast::<JsArray>().unwrap().to_vec(cx).unwrap();
     let mut result = vec![];
@@ -176,10 +176,10 @@ fn tokenize_array<T: neon::object::This>(
     Ok(result)
 }
 
-fn tokenize_struct<T: neon::object::This>(
+fn tokenize_struct<'cx, C: Context<'cx>>(
     value: &Handle<JsValue>,
     param: &[ParamType],
-    cx: &mut CallContext<'_, T>,
+    cx: &mut C,
 ) -> Result<Vec<Token>, Error> {
     let mut params = param.iter();
     let mut result = vec![];
@@ -197,10 +197,10 @@ fn tokenize_struct<T: neon::object::This>(
     Ok(result)
 }
 
-fn tokenize<T: neon::object::This>(
+fn tokenize<'cx, C: Context<'cx>>(
     param: &ParamType,
     value: &Handle<JsValue>,
-    cx: &mut CallContext<'_, T>,
+    cx: &mut C,
 ) -> Result<Token, Error> {
     match *param {
         ParamType::Address => tokenize_address(value).map(|a| Token::Address(a.into())),
@@ -216,9 +216,9 @@ fn tokenize<T: neon::object::This>(
     }
 }
 
-fn tokenize_out<'cx, T: neon::object::This>(
-    token: &ethabi::Token,
-    cx: &mut CallContext<'cx, T>,
+fn tokenize_out<'cx, C: Context<'cx>>(
+    token: &Token,
+    cx: &mut C,
 ) -> Result<Handle<'cx, JsValue>, Error> {
     let value: Handle<JsValue> = match token {
         Token::Bool(b) => cx.boolean(*b).upcast(),
