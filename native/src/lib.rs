@@ -4,7 +4,7 @@ use ethabi::{
     token::{LenientTokenizer, Token, Tokenizer},
     Contract, Error, ParamType,
 };
-use neon::prelude::*;
+use neon::{prelude::*, result::Throw};
 use result_ext::ResultExt;
 
 pub struct Coder(Contract);
@@ -16,7 +16,11 @@ impl Coder {
 
     pub fn argument_types(&self, function: &str) -> anyhow::Result<Vec<ParamType>> {
         let function = self.0.function(function)?;
-        let result = function.inputs.iter().map(|param| param.kind.clone()).collect();
+        let result = function
+            .inputs
+            .iter()
+            .map(|param| param.kind.clone())
+            .collect();
         Ok(result)
     }
 
@@ -57,7 +61,7 @@ declare_types! {
 
             // Cast JsValues into correct token types
             let tokens = kinds.iter().zip(arguments.iter())
-            .map(|(kind, value)| tokenize(kind, value, &mut cx))
+            .map(|(kind, value)| tokenize(&mut cx, kind, value))
             .collect::<Result<Vec<_>,_>>()
             .or_throw(&mut cx)?;
 
@@ -91,16 +95,34 @@ declare_types! {
     }
 }
 
-fn tokens_to_js<'cx, C: Context<'cx>>(
-    cx: &mut C,
-    tokens: &[Token],
-) -> JsResult<'cx, JsValue> {
+fn tokens_to_js<'cx, C: Context<'cx>>(cx: &mut C, tokens: &[Token]) -> JsResult<'cx, JsValue> {
     let result = JsArray::new(cx, tokens.len() as u32);
     for (i, token) in tokens.iter().enumerate() {
-        let value = tokenize_out(token, cx).or_throw(cx)?;
+        let value = tokenize_out(token, cx)?;
         result.set(cx, i as u32, value)?;
     }
     Ok(result.upcast())
+}
+
+fn tokenize_out<'cx, C: Context<'cx>>(token: &Token, cx: &mut C) -> JsResult<'cx, JsValue> {
+    Ok(match token {
+        Token::Bool(b) => cx.boolean(*b).upcast(),
+        Token::String(ref s) => cx.string(s.to_string()).upcast(),
+        Token::Address(ref s) => cx.string(format!("0x{}", hex::encode(&s))).upcast(),
+        Token::Bytes(ref bytes) | Token::FixedBytes(ref bytes) => {
+            cx.string(format!("0x{}", hex::encode(bytes))).upcast()
+        }
+        Token::Uint(ref i) | Token::Int(ref i) => cx.string(i.to_string()).upcast(),
+        // Arrays and Tuples will contain one of the above, or more arrays or tuples
+        Token::Array(ref arr) | Token::FixedArray(ref arr) | Token::Tuple(ref arr) => {
+            let value_array = JsArray::new(cx, arr.len() as u32);
+            for (i, value) in arr.iter().enumerate() {
+                let result = tokenize_out(value, cx)?;
+                value_array.set(cx, i as u32, result)?;
+            }
+            value_array.upcast()
+        }
+    })
 }
 
 fn remove_hex_prefix(data_hex: &str) -> &str {
@@ -117,78 +139,97 @@ fn remove_bytes4(data_hex: &str) -> &str {
     &s[8..]
 }
 
-fn tokenize_address(value: &Handle<JsValue>) -> Result<[u8; 20], Error> {
-    let arg = value.downcast::<JsString>().unwrap().value();
-    LenientTokenizer::tokenize_address(remove_hex_prefix(&arg))
+fn tokenize_address<'cx, C: Context<'cx>>(
+    cx: &mut C,
+    value: &Handle<JsValue>,
+) -> Result<[u8; 20], Throw> {
+    let arg = value.downcast_or_throw::<JsString, _>(cx)?.value();
+    LenientTokenizer::tokenize_address(remove_hex_prefix(&arg)).or_throw(cx)
 }
 
-fn tokenize_string(value: &Handle<JsValue>) -> Result<String, Error> {
-    let arg = value.downcast::<JsString>().unwrap().value();
-    LenientTokenizer::tokenize_string(&arg)
+fn tokenize_string<'cx, C: Context<'cx>>(
+    cx: &mut C,
+    value: &Handle<JsValue>,
+) -> Result<String, Throw> {
+    let arg = value.downcast_or_throw::<JsString, _>(cx)?.value();
+    LenientTokenizer::tokenize_string(&arg).or_throw(cx)
 }
 
-fn tokenize_bool(value: &Handle<JsValue>) -> Result<bool, Error> {
-    let arg = value.downcast::<JsBoolean>().unwrap().value();
+fn tokenize_bool<'cx, C: Context<'cx>>(cx: &mut C, value: &Handle<JsValue>) -> Result<bool, Throw> {
+    let arg = value.downcast_or_throw::<JsBoolean, _>(cx)?.value();
     Ok(arg)
 }
 
-fn tokenize_bytes(value: &Handle<JsValue>) -> Result<Vec<u8>, Error> {
-    let arg = value.downcast::<JsString>().unwrap().value();
-    LenientTokenizer::tokenize_bytes(remove_hex_prefix(&arg))
+fn tokenize_bytes<'cx, C: Context<'cx>>(
+    cx: &mut C,
+    value: &Handle<JsValue>,
+) -> Result<Vec<u8>, Throw> {
+    let arg = value.downcast_or_throw::<JsString, _>(cx)?.value();
+    LenientTokenizer::tokenize_bytes(remove_hex_prefix(&arg)).or_throw(cx)
 }
 
-fn tokenize_fixed_bytes(value: &Handle<JsValue>, len: usize) -> Result<Vec<u8>, Error> {
-    let arg = value.downcast::<JsString>().unwrap().value();
-    LenientTokenizer::tokenize_fixed_bytes(remove_hex_prefix(&arg), len)
+fn tokenize_fixed_bytes<'cx, C: Context<'cx>>(
+    cx: &mut C,
+    value: &Handle<JsValue>,
+    len: usize,
+) -> Result<Vec<u8>, Throw> {
+    let arg = value.downcast_or_throw::<JsString, _>(cx)?.value();
+    LenientTokenizer::tokenize_fixed_bytes(remove_hex_prefix(&arg), len).or_throw(cx)
 }
 
-fn tokenize_uint(value: &Handle<JsValue>) -> Result<[u8; 32], Error> {
+fn tokenize_uint<'cx, C: Context<'cx>>(
+    cx: &mut C,
+    value: &Handle<JsValue>,
+) -> Result<[u8; 32], Throw> {
     let str = if value.is_a::<JsNumber>() {
-        let arg = value.downcast::<JsNumber>().unwrap().value();
+        let arg = value.downcast_or_throw::<JsNumber, _>(cx)?.value();
         arg.to_string()
     } else {
-        value.downcast::<JsString>().unwrap().value()
+        value.downcast_or_throw::<JsString,_>(cx)?.value()
     };
-    LenientTokenizer::tokenize_uint(&str)
+    LenientTokenizer::tokenize_uint(&str).or_throw(cx)
 }
 
-fn tokenize_int(value: &Handle<JsValue>) -> Result<[u8; 32], Error> {
+fn tokenize_int<'cx, C: Context<'cx>>(
+    cx: &mut C,
+    value: &Handle<JsValue>,
+) -> Result<[u8; 32], Throw> {
     let str = if value.is_a::<JsNumber>() {
-        let arg = value.downcast::<JsNumber>().unwrap().value();
+        let arg = value.downcast_or_throw::<JsNumber, _>(cx)?.value();
         arg.to_string()
     } else {
-        value.downcast::<JsString>().unwrap().value()
+        value.downcast_or_throw::<JsString, _>(cx)?.value()
     };
-    LenientTokenizer::tokenize_int(&str)
+    LenientTokenizer::tokenize_int(&str).or_throw(cx)
 }
 
 fn tokenize_array<'cx, C: Context<'cx>>(
+    cx: &mut C,
     value: &Handle<JsValue>,
     param: &ParamType,
-    cx: &mut C,
-) -> Result<Vec<Token>, Error> {
-    let arr = value.downcast::<JsArray>().unwrap().to_vec(cx).unwrap();
+) -> Result<Vec<Token>, Throw> {
+    let arr = value.downcast_or_throw::<JsArray,_>(cx)?.to_vec(cx).or_throw(cx)?;
     let mut result = vec![];
     for (_i, v) in arr.iter().enumerate() {
-        let token = tokenize(param, v, cx)?;
+        let token = tokenize(cx, param, v)?;
         result.push(token)
     }
     Ok(result)
 }
 
 fn tokenize_struct<'cx, C: Context<'cx>>(
+    cx: &mut C,
     value: &Handle<JsValue>,
     param: &[ParamType],
-    cx: &mut C,
-) -> Result<Vec<Token>, Error> {
+) -> Result<Vec<Token>, Throw> {
     let mut params = param.iter();
     let mut result = vec![];
     // If it's an array we assume it is in the correct order
     if value.is_a::<JsArray>() {
-        let arr = value.downcast::<JsArray>().unwrap().to_vec(cx).unwrap();
+        let arr = value.downcast_or_throw::<JsArray, _>(cx)?.to_vec(cx).or_throw(cx)?;
         for (_i, v) in arr.iter().enumerate() {
-            let p = params.next().ok_or(Error::InvalidData)?;
-            let token = tokenize(p, v, cx)?;
+            let p = params.next().ok_or(Error::InvalidData).or_throw(cx)?;
+            let token = tokenize(cx, p, v)?;
             result.push(token)
         }
     } else {
@@ -198,47 +239,22 @@ fn tokenize_struct<'cx, C: Context<'cx>>(
 }
 
 fn tokenize<'cx, C: Context<'cx>>(
+    cx: &mut C,
     param: &ParamType,
     value: &Handle<JsValue>,
-    cx: &mut C,
-) -> Result<Token, Error> {
+) -> Result<Token, Throw> {
     match *param {
-        ParamType::Address => tokenize_address(value).map(|a| Token::Address(a.into())),
-        ParamType::String => tokenize_string(value).map(Token::String),
-        ParamType::Bool => tokenize_bool(value).map(Token::Bool),
-        ParamType::Bytes => tokenize_bytes(value).map(Token::Bytes),
-        ParamType::FixedBytes(len) => tokenize_fixed_bytes(value, len).map(Token::FixedBytes),
-        ParamType::Uint(_) => tokenize_uint(value).map(Into::into).map(Token::Uint),
-        ParamType::Int(_) => tokenize_int(value).map(Into::into).map(Token::Int),
-        ParamType::Array(ref p) => tokenize_array(value, p, cx).map(Token::Array),
-        ParamType::FixedArray(ref p, _len) => tokenize_array(value, p, cx).map(Token::FixedArray),
-        ParamType::Tuple(ref p) => tokenize_struct(value, p, cx).map(Token::Tuple),
+        ParamType::Address => tokenize_address(cx, value).map(|a| Token::Address(a.into())),
+        ParamType::String => tokenize_string(cx, value).map(Token::String),
+        ParamType::Bool => tokenize_bool(cx, value).map(Token::Bool),
+        ParamType::Bytes => tokenize_bytes(cx, value).map(Token::Bytes),
+        ParamType::FixedBytes(len) => tokenize_fixed_bytes(cx, value, len).map(Token::FixedBytes),
+        ParamType::Uint(_) => tokenize_uint(cx, value).map(Into::into).map(Token::Uint),
+        ParamType::Int(_) => tokenize_int(cx, value).map(Into::into).map(Token::Int),
+        ParamType::Array(ref p) => tokenize_array(cx, value, p).map(Token::Array),
+        ParamType::FixedArray(ref p, _len) => tokenize_array(cx, value, p).map(Token::FixedArray),
+        ParamType::Tuple(ref p) => tokenize_struct(cx, value, p).map(Token::Tuple),
     }
-}
-
-fn tokenize_out<'cx, C: Context<'cx>>(
-    token: &Token,
-    cx: &mut C,
-) -> Result<Handle<'cx, JsValue>, Error> {
-    let value: Handle<JsValue> = match token {
-        Token::Bool(b) => cx.boolean(*b).upcast(),
-        Token::String(ref s) => cx.string(s.to_string()).upcast(),
-        Token::Address(ref s) => cx.string(format!("0x{}", hex::encode(&s))).upcast(),
-        Token::Bytes(ref bytes) | Token::FixedBytes(ref bytes) => {
-            cx.string(format!("0x{}", hex::encode(bytes))).upcast()
-        }
-        Token::Uint(ref i) | Token::Int(ref i) => cx.string(i.to_string()).upcast(),
-        // Arrays and Tuples will contain one of the above, or more arrays or tuples
-        Token::Array(ref arr) | Token::FixedArray(ref arr) | Token::Tuple(ref arr) => {
-            let value_array = JsArray::new(cx, arr.len() as u32);
-            for (i, value) in arr.iter().enumerate() {
-                let result = tokenize_out(value, cx)?;
-                value_array.set(cx, i as u32, result).unwrap();
-            }
-            value_array.upcast()
-        }
-    };
-    Ok(value)
 }
 
 register_module!(mut cx, { cx.export_class::<JsCoder>("Coder") });
