@@ -1,35 +1,28 @@
 import { DataItem, MethodAbi } from 'ethereum-types';
 import { BigNumber } from 'bignumber.js';
 
-var uuid = require('uuid');
-
-var addon = require('../native');
+const { Coder } = require('../native');
 
 interface Opts {
     BigNumber: any;
 }
 
 export class FastABI {
-    public static ping() {
-        addon.hello();
-    }
-
-    private readonly _key: string;
+    private readonly _coder: any;
     private readonly _abi: MethodAbi[];
     private readonly _opts: Opts;
 
     constructor(abi: MethodAbi[], opts?: Opts) {
         this._opts = { BigNumber: BigNumber, ...opts } || { BigNumber: BigNumber };
-        this._key = uuid.v4();
         this._abi = abi;
-        addon.loadAbi(this._key, JSON.stringify(abi));
+        this._coder = new Coder(JSON.stringify(abi));
     }
 
     public encodeInput(fnName: string, values: any[]): string {
         const found = this._abi.filter((a) => a.name === fnName)[0];
         const args = this._serializeArgsOut(values, found.inputs);
         try {
-            const encoded = addon.encodeInput(this._key, fnName, args);
+            const encoded = this._coder.encodeInput(fnName, args);
             return `0x${encoded}`;
         } catch (e) {
             throw new Error(`${e.message}.\nvalues=${JSON.stringify(values)}\nargs=${JSON.stringify(args)}`);
@@ -38,13 +31,13 @@ export class FastABI {
 
     public decodeInput(fnName: string, output: string): any {
         const found = this._abi.filter((a) => a.name === fnName)[0];
-        const decoded = addon.decodeInput(this._key, fnName, output);
+        const decoded = this._coder.decodeInput(fnName, output);
         return this._deserializeResultsIn(found.inputs, decoded);
     }
 
     public decodeOutput(fnName: string, output: string): any {
         const found = this._abi.filter((a) => a.name === fnName)[0];
-        const decoded = addon.decodeOutput(this._key, fnName, output);
+        const decoded = this._coder.decodeOutput(fnName, output);
         return this._deserializeResultsIn(found.outputs, decoded);
     }
 

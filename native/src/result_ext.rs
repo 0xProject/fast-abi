@@ -1,8 +1,6 @@
 //! Extension trait for Result so we don't have to repeat JS exception creation.
 
-use neon::prelude::*;
-use neon::object::This;
-use neon::result::Throw;
+use neon::{prelude::*, object::This, result::Throw};
 use std::fmt::Display;
 
 pub trait ResultExt<T> {

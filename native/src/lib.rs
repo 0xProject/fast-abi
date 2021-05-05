@@ -1,14 +1,11 @@
 mod result_ext;
 
-use result_ext::ResultExt;
-use neon::prelude::*;
 use ethabi::{
     token::{LenientTokenizer, Token, Tokenizer},
-    Contract, Error, Function, ParamType,
+    Contract, Error, ParamType,
 };
-use std::{collections::HashMap, sync::Mutex};
-use once_cell::sync::OnceCell;
-use neon::object::This;
+use neon::{prelude::*, object::This};
+use result_ext::ResultExt;
 
 pub struct Coder(Contract);
 
@@ -18,21 +15,27 @@ impl Coder {
     }
 
     pub fn argument_types(&self, function: &str) -> anyhow::Result<Vec<ParamType>> {
-        Ok(self.0.function(function)?.inputs.iter().map(|param| param.kind.clone()).collect())
+        let function = self.0.function(function)?;
+        let result = function.inputs.iter().map(|param| param.kind.clone()).collect();
+        Ok(result)
     }
 
     pub fn encode_input(&self, function: &str, arguments: &[Token]) -> anyhow::Result<String> {
-        Ok(self.0.function(function)?.encode_input(arguments).map(hex::encode)?)
+        let function = self.0.function(function)?;
+        let result = function.encode_input(arguments).map(hex::encode)?;
+        Ok(result)
     }
 
     pub fn decode_input(&self, function: &str, data: &str) -> anyhow::Result<Vec<Token>> {
-        let data = hex::decode(remove_hex_prefix(data))?;
-        Ok(self.0.function(function)?.decode_input(&data)?)
+        let function = self.0.function(function)?;
+        let data = hex::decode(remove_bytes4(data))?;
+        Ok(function.decode_input(&data)?)
     }
 
     pub fn decode_output(&self, function: &str, data: &str) -> anyhow::Result<Vec<Token>> {
+        let function = self.0.function(function)?;
         let data = hex::decode(remove_hex_prefix(data))?;
-        Ok(self.0.function(function)?.decode_output(&data)?)
+        Ok(function.decode_output(&data)?)
     }
 }
 
@@ -51,7 +54,7 @@ declare_types! {
             // Fetch argument types
             let kinds = cx.borrow(&this, |coder| coder.argument_types(&function))
             .or_throw(&mut cx)?;
-            
+
             // Cast JsValues into correct token types
             let tokens = kinds.iter().zip(arguments.iter())
             .map(|(kind, value)| tokenize(kind, value, &mut cx))
@@ -91,33 +94,13 @@ declare_types! {
 fn tokens_to_js<'cx, T: This>(
     cx: &mut CallContext<'cx, T>,
     tokens: &[Token],
-) -> JsResult<'cx, JsValue>
-{
+) -> JsResult<'cx, JsValue> {
     let result = JsArray::new(cx, tokens.len() as u32);
     for (i, token) in tokens.iter().enumerate() {
-        let value = tokenize_out(token, cx)
-        .or_throw(cx)?;
+        let value = tokenize_out(token, cx).or_throw(cx)?;
         result.set(cx, i as u32, value)?;
     }
     Ok(result.upcast())
-}
-
-static INSTANCE: OnceCell<Mutex<HashMap<String, Contract>>> = OnceCell::new();
-
-fn load_abi(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-    let id_h: Handle<JsString> = cx.argument(0)?;
-    let id = id_h.downcast::<JsString>().unwrap().value();
-
-    let abi_json_h: Handle<JsString> = cx.argument(1)?;
-    let abi_json = abi_json_h.downcast::<JsString>().unwrap().value();
-
-    INSTANCE
-        .get()
-        .unwrap()
-        .lock()
-        .unwrap()
-        .insert(id, Contract::load(abi_json.as_bytes()).unwrap());
-    Ok(cx.boolean(true))
 }
 
 fn remove_hex_prefix(data_hex: &str) -> &str {
@@ -258,130 +241,4 @@ fn tokenize_out<'cx, T: neon::object::This>(
     Ok(value)
 }
 
-fn parse_tokens(
-    params: &[(ParamType, &Handle<JsValue>)],
-    cx: &mut FunctionContext,
-) -> anyhow::Result<Vec<Token>> {
-    params
-        .iter()
-        .map(|&(ref param, value)| tokenize(param, value, cx))
-        .collect::<Result<_, _>>()
-        .map_err(From::from)
-}
-
-fn encode_input(mut cx: FunctionContext) -> JsResult<JsString> {
-    // ID (0)
-    // function name (1)
-    // args array (2)
-    let id_h: Handle<JsString> = cx.argument(0)?;
-    let id = id_h.downcast::<JsString>().unwrap().value();
-
-    let function_signature_h: Handle<JsString> = cx.argument(1)?;
-    let args_h: Handle<JsArray> = cx.argument(2)?;
-
-    let function_signature = function_signature_h.downcast::<JsString>().unwrap().value();
-    let args_vec: Vec<Handle<JsValue>> = args_h.to_vec(&mut cx)?;
-
-    let function: Function = INSTANCE
-        .get()
-        .unwrap()
-        .lock()
-        .unwrap()
-        .get(&id)
-        .unwrap()
-        .functions_by_name(&function_signature)
-        .unwrap()[0]
-        .clone();
-
-    let params: Vec<_> = function
-        .inputs
-        .iter()
-        .map(|param| param.kind.clone())
-        .zip(args_vec.iter().map(|v| v as &Handle<JsValue>))
-        .collect();
-    let tokens = parse_tokens(&params, &mut cx).unwrap();
-    let encoded = function.encode_input(&tokens).unwrap();
-    Ok(cx.string(hex::encode(&encoded)))
-}
-
-fn decode_output(mut cx: FunctionContext) -> JsResult<JsArray> {
-    let id_h: Handle<JsString> = cx.argument(0)?;
-    let function_signature_h: Handle<JsString> = cx.argument(1)?;
-    let data_h: Handle<JsString> = cx.argument(2)?;
-
-    let id = id_h.downcast::<JsString>().unwrap().value();
-    let function_signature = function_signature_h.downcast::<JsString>().unwrap().value();
-    let data_hex = data_h.downcast::<JsString>().unwrap().value();
-
-    let function: Function = INSTANCE
-        .get()
-        .unwrap()
-        .lock()
-        .unwrap()
-        .get(&id)
-        .unwrap()
-        .functions_by_name(&function_signature)
-        .unwrap()[0]
-        .clone();
-
-    let data: Vec<u8> = hex::decode(remove_hex_prefix(&data_hex)).unwrap();
-    let tokens = function.decode_output(&data).unwrap();
-
-    let result_array = JsArray::new(&mut cx, tokens.len() as u32);
-
-    for (i, token) in tokens.iter().enumerate() {
-        let result = tokenize_out(token, &mut cx).unwrap();
-        result_array.set(&mut cx, i as u32, result)?;
-    }
-
-    Ok(result_array)
-}
-
-fn decode_input(mut cx: FunctionContext) -> JsResult<JsArray> {
-    let id_h: Handle<JsString> = cx.argument(0)?;
-    let function_signature_h: Handle<JsString> = cx.argument(1)?;
-    let data_h: Handle<JsString> = cx.argument(2)?;
-
-    let id = id_h.downcast::<JsString>().unwrap().value();
-    let function_signature = function_signature_h.downcast::<JsString>().unwrap().value();
-    let data_hex = data_h.downcast::<JsString>().unwrap().value();
-
-    let function: Function = INSTANCE
-        .get()
-        .unwrap()
-        .lock()
-        .unwrap()
-        .get(&id)
-        .unwrap()
-        .functions_by_name(&function_signature)
-        .unwrap()[0]
-        .clone();
-
-    let data: Vec<u8> = hex::decode(&remove_bytes4(&data_hex)).unwrap();
-    let tokens = function.decode_input(&data).unwrap();
-
-    let result_array = JsArray::new(&mut cx, tokens.len() as u32);
-
-    for (i, token) in tokens.iter().enumerate() {
-        let result = tokenize_out(token, &mut cx).unwrap();
-        result_array.set(&mut cx, i as u32, result)?;
-    }
-
-    Ok(result_array)
-}
-
-fn hello(mut cx: FunctionContext) -> JsResult<JsString> {
-    Ok(cx.string("hello world"))
-}
-
-register_module!(mut cx, {
-    INSTANCE.set(Mutex::new(HashMap::new())).unwrap();
-
-    cx.export_class::<JsCoder>("Coder")?;
-    cx.export_function("hello", hello)?;
-    cx.export_function("loadAbi", load_abi)?;
-    cx.export_function("encodeInput", encode_input)?;
-    cx.export_function("decodeInput", decode_input)?;
-    cx.export_function("decodeOutput", decode_output)?;
-    Ok(())
-});
+register_module!(mut cx, { cx.export_class::<JsCoder>("Coder") });
