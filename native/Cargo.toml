@@ -15,11 +15,8 @@ crate-type = ["cdylib"]
 neon-build = "0.8.0"
 
 [dependencies]
-neon = "0.8.0"
+neon = "0.8.1"
 once_cell = "1.7.2"
-ethereum-types = "0.11.0"
 anyhow = "1.0.40"
 hex = "0.4.2"
-ethabi = { git = "https://github.com/rust-ethereum/ethabi", rev = "970d47018e0f457440851752a7b46a4dbf793a0b" }
-ethabi-contract = { git = "https://github.com/rust-ethereum/ethabi", rev = "970d47018e0f457440851752a7b46a4dbf793a0b" }
-ethabi-derive = { git = "https://github.com/rust-ethereum/ethabi", rev = "970d47018e0f457440851752a7b46a4dbf793a0b" }
+ethabi = "14.0"
