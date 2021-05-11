@@ -100,6 +100,6 @@ export class FastABI {
             return output;
         }
 
-        return arg.toString();
+        return arg.toString(10);
     }
 }
