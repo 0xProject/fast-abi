@@ -100,6 +100,10 @@ export class FastABI {
             return output;
         }
 
+        if (this._opts.BigNumber.isBigNumber(arg)) {
+            return arg.toString(10);
+        }
+
         return arg.toString();
     }
 }
