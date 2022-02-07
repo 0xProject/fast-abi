@@ -10,19 +10,22 @@
         "uuid": "^8.3.2"
     },
     "scripts": {
-        "build": "tsc -b && neon build --release",
+        "build": "yarn build:ts && yarn build:rs:release",
         "build:ts": "tsc -b",
-        "build:rs": "neon build",
+        "build:rs": "cargo-cp-artifact -nc bin/index.node -- cargo build --message-format=json-render-diagnostics",
+        "build:rs:release": "yarn build:rs --release",
+        "install": "node-pre-gyp install --fallback-to-build",
         "watch": "tsc -w -p tsconfig.json",
-        "install": "node-pre-gyp install --fallback-to-build=false || neon build --release",
         "package": "node-pre-gyp package",
-        "upload-binary": "node-pre-gyp package && node-pre-gyp-github publish"
+        "upload-binary": "yarn build && yarn node-pre-gyp package && yarn node-pre-gyp-github publish",
+        "prepack": "shx rm -rf bin"
     },
     "devDependencies": {
-        "neon-cli": "^0.8.0",
         "@mathquis/node-pre-gyp-github": "1.0.1",
         "@types/mocha": "^5.2.7",
         "@types/node": "12.12.54",
+        "shx": "^0.3.3",
+        "cargo-cp-artifact": "^0.1.6",
         "chai": "^4.0.1",
         "chai-as-promised": "^7.1.0",
         "chai-bignumber": "^3.0.0",
