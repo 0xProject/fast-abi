@@ -1,22 +1,21 @@
 {
-  "compilerOptions": {
-    "outDir": "lib",
-    "rootDir": "src",
-    "resolveJsonModule": true,
-    "module": "commonjs",
-    "target": "es6",
-    "lib": ["es2017", "esnext.asynciterable", "es2018.promise"],
-    "experimentalDecorators": true,
-    "downlevelIteration": true,
-    "noImplicitReturns": true,
-    "pretty": true,
-    "skipLibCheck": true,
-    "typeRoots": ["node_modules/@types", "node_modules/ethereum-types"],
-    "strict": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true
-  },
-  "include": ["./src/**/*"],
-  "exclude": ["./native/**/*"]
+    "compilerOptions": {
+        "outDir": "lib",
+        "rootDir": "src",
+        "resolveJsonModule": true,
+        "module": "commonjs",
+        "target": "es6",
+        "lib": ["es2017", "esnext.asynciterable", "es2018.promise"],
+        "experimentalDecorators": true,
+        "downlevelIteration": true,
+        "noImplicitReturns": true,
+        "pretty": true,
+        "skipLibCheck": true,
+        "typeRoots": ["node_modules/@types", "node_modules/ethereum-types"],
+        "strict": true,
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true
+    },
+    "include": ["./src/**/*"]
 }

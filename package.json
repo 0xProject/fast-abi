@@ -7,6 +7,7 @@
     "license": "MIT",
     "dependencies": {
         "@mapbox/node-pre-gyp": "^1.0.4",
+        "cargo-cp-artifact": "^0.1.6",
         "uuid": "^8.3.2"
     },
     "scripts": {
@@ -14,7 +15,7 @@
         "build:ts": "tsc -b",
         "build:rs": "cargo-cp-artifact -nc bin/index.node -- cargo build --message-format=json-render-diagnostics",
         "build:rs:release": "yarn build:rs --release",
-        "install": "node-pre-gyp install --fallback-to-build",
+        "install": "node-pre-gyp install --fallback-to-build=false || yarn build:rs:release",
         "watch": "tsc -w -p tsconfig.json",
         "package": "node-pre-gyp package",
         "upload-binary": "yarn build && yarn node-pre-gyp package && yarn node-pre-gyp-github publish",
@@ -24,13 +25,12 @@
         "@mathquis/node-pre-gyp-github": "1.0.1",
         "@types/mocha": "^5.2.7",
         "@types/node": "12.12.54",
-        "shx": "^0.3.3",
-        "cargo-cp-artifact": "^0.1.6",
         "chai": "^4.0.1",
         "chai-as-promised": "^7.1.0",
         "chai-bignumber": "^3.0.0",
         "ethereum-types": "^3.4.1",
         "mocha": "^6.2.0",
+        "shx": "^0.3.3",
         "tslint": "5.11.0",
         "typescript": "4.2.2"
     },
@@ -39,7 +39,12 @@
         "url": "git+https://github.com/0xProject/fast-abi.git"
     },
     "files": [
-        "lib"
+        "lib",
+        "binding.gyp",
+        "build.rs",
+        "src",
+        "Cargo.toml",
+        "Cargo.lock"
     ],
     "binary": {
         "module_name": "index",
