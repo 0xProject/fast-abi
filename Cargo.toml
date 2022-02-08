@@ -1,5 +1,5 @@
 [package]
-name = "rust-node"
+name = "fast-abi"
 version = "0.0.1"
 authors = ["Jacob Evans <jacob@dekz.net>"]
 license = "MIT"
@@ -8,8 +8,8 @@ edition = "2018"
 exclude = ["artifacts.json", "index.node"]
 
 [lib]
-name = "rust_node"
 crate-type = ["cdylib"]
+
 
 [build-dependencies]
 neon-build = "0.8.0"

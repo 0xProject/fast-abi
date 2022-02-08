@@ -1,23 +1,25 @@
 {
     "name": "fast-abi",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "description": "",
     "main": "lib/index.js",
     "author": "Jacob Evans <jacob@dekz.net>",
     "license": "MIT",
     "dependencies": {
         "@mapbox/node-pre-gyp": "^1.0.4",
-        "neon-cli": "^0.8.0",
+        "cargo-cp-artifact": "^0.1.6",
         "uuid": "^8.3.2"
     },
     "scripts": {
-        "build": "tsc -b && neon build --release",
+        "build": "yarn build:ts && yarn build:rs:release",
         "build:ts": "tsc -b",
-        "build:rs": "neon build",
+        "build:rs": "cargo-cp-artifact -nc bin/index.node -- cargo build --message-format=json-render-diagnostics",
+        "build:rs:release": "yarn build:rs --release",
+        "install": "node-pre-gyp install --fallback-to-build=false || yarn build:rs:release",
         "watch": "tsc -w -p tsconfig.json",
-        "install": "node-pre-gyp install --fallback-to-build=false || neon build --release",
         "package": "node-pre-gyp package",
-        "upload-binary": "node-pre-gyp package && node-pre-gyp-github publish"
+        "upload-binary": "yarn build && yarn node-pre-gyp package && yarn node-pre-gyp-github publish",
+        "prepack": "shx rm -rf bin"
     },
     "devDependencies": {
         "@mathquis/node-pre-gyp-github": "1.0.1",
@@ -28,6 +30,7 @@
         "chai-bignumber": "^3.0.0",
         "ethereum-types": "^3.4.1",
         "mocha": "^6.2.0",
+        "shx": "^0.3.3",
         "tslint": "5.11.0",
         "typescript": "4.2.2"
     },
@@ -36,14 +39,19 @@
         "url": "git+https://github.com/0xProject/fast-abi.git"
     },
     "files": [
-        "lib"
+        "lib",
+        "binding.gyp",
+        "build.rs",
+        "src",
+        "Cargo.toml",
+        "Cargo.lock"
     ],
     "binary": {
         "module_name": "index",
         "host": "https://github.com/0xProject/fast-abi/releases/download/",
         "remote_path": "{version}",
         "package_name": "{node_abi}-{platform}-{arch}.tar.gz",
-        "module_path": "./native",
+        "module_path": "bin",
         "pkg_path": "."
     }
 }
