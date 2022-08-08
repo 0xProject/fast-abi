@@ -1,5 +1,5 @@
 {
-    "name": "fast-abi",
+    "name": "@0x/fast-abi",
     "version": "0.0.5",
     "description": "",
     "main": "lib/index.js",
