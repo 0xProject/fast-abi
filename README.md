@@ -62,3 +62,17 @@ const output = RUST_ENCODER.decodeOutput('sampleSellsFromUniswapV2', callData);
         ✓ fast-abi (2244ms)
         p25: 0.177959ms, p50: 0.183959ms, p99: 0.230166ms, p100: 6.963125ms
 ```
+
+### How to Publish
+
+#### npm
+
+```
+yarn publish --access public
+```
+
+#### Rust Binary
+
+NOTE: make sure `package.json` with a new npm package version is merged.
+
+Push an empty commit with message `[publish binary]`. This will trigger a GitHub action step `publish` which will publish the rust binary.
