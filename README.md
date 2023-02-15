@@ -75,4 +75,20 @@ yarn publish --access public
 
 NOTE: make sure `package.json` with a new npm package version is merged.
 
-Push an empty commit with message `[publish binary]`. This will trigger a GitHub action step `publish` which will publish the rust binary.
+Push an empty commit with message `[publish binary]`.
+This will trigger a GitHub action step `publish` which will publish the Rust binaries to a new GitHub draft release.
+
+In GitHub, update the release notes and publish the release.
+
+#### arm64 Binaries
+
+GitHub does not provide an arm64 environment with which to build binaries.
+However, binaries can be built locally (on an Mx Mac, typically):
+
+```bash
+yarn build
+yarn node-pre-gyp package
+```
+
+This will output the binary to `build/stage/<package version>`. It may then be manually added
+to the GitHub release.
