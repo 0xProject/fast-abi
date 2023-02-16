@@ -65,4 +65,4 @@ jobs:
               if: "contains(github.event.head_commit.message, '[publish binary]')"
               run: |
                   COMMIT_MESSAGE=$(git log --format=%B --no-merges -n 1 | tr -d '\n') \
-                  npm run upload-binary
+                  yarn upload-binary
