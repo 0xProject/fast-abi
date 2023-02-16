@@ -1,7 +1,7 @@
 import { DataItem, MethodAbi } from 'ethereum-types';
 import { BigNumber } from 'bignumber.js';
 
-const { Coder } = require('../bin');
+const { coderNew, coderEncodeInput, coderDecodeInput, coderDecodeOutput } = require('../bin');
 
 interface Opts {
     BigNumber: any;
@@ -15,29 +15,29 @@ export class FastABI {
     constructor(abi: MethodAbi[], opts?: Opts) {
         this._opts = { BigNumber: BigNumber, ...opts } || { BigNumber: BigNumber };
         this._abi = abi;
-        this._coder = new Coder(JSON.stringify(abi));
+        this._coder = coderNew(JSON.stringify(abi));
     }
 
     public encodeInput(fnName: string, values: any[]): string {
         const found = this._abi.filter((a) => a.name === fnName)[0];
         const args = this._serializeArgsOut(values, found.inputs);
         try {
-            const encoded = this._coder.encodeInput(fnName, args);
+            const encoded = coderEncodeInput.call(this._coder, fnName, args);
             return `0x${encoded}`;
         } catch (e) {
-            throw new Error(`${e.message}.\nvalues=${JSON.stringify(values)}\nargs=${JSON.stringify(args)}`);
+            throw new Error(`${(e as Error).message}.\nvalues=${JSON.stringify(values)}\nargs=${JSON.stringify(args)}`);
         }
     }
 
     public decodeInput(fnName: string, output: string): any {
         const found = this._abi.filter((a) => a.name === fnName)[0];
-        const decoded = this._coder.decodeInput(fnName, output);
+        const decoded = coderDecodeInput.call(this._coder, fnName, output);
         return this._deserializeResultsIn(found.inputs, decoded);
     }
 
     public decodeOutput(fnName: string, output: string): any {
         const found = this._abi.filter((a) => a.name === fnName)[0];
-        const decoded = this._coder.decodeOutput(fnName, output);
+        const decoded = coderDecodeOutput.call(this._coder, fnName, output);
         return this._deserializeResultsIn(found.outputs, decoded);
     }
 
