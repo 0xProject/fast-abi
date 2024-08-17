@@ -11,8 +11,10 @@ jobs:
 
         strategy:
             matrix:
-                node-version: [21.x, 20.x, 19.x, 18.x]
-                os: [ubuntu-latest, macos-latest]
+                node-version: [22.x, 20.x]
+                # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#choosing-github-hosted-runners
+                # macos-13 runs on intel processors, macos-14 runs on apple silicon
+                os: [ubuntu-latest, macos-13, macos-14]
 
         runs-on: ${{ matrix.os }}
 
