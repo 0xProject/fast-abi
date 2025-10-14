@@ -1,6 +1,14 @@
 name: CI
 
-on: push
+on:
+    push:
+        tags:
+            - 'v*'
+    pull_request:
+
+permissions:
+    id-token: write  # Required for OIDC
+    contents: read
 
 env:
     CARGO_TERM_COLOR: always
@@ -52,7 +60,26 @@ jobs:
             - name: Publish
               env:
                   NODE_PRE_GYP_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              if: "contains(github.event.head_commit.message, '[publish binary]')"
+              if: contains(github.event.head_commit.message, '[publish binary]')
               run: |
                   COMMIT_MESSAGE=$(git log --format=%B --no-merges -n 1 | tr -d '\n') \
                   npm run upload-binary
+
+    publish:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  registry-url: 'https://registry.npmjs.org'
+
+            # Ensure npm 11.5.1 or later is installed
+            - name: Update npm
+              run: npm install -g npm@latest
+            - run: npm ci
+            - run: npm run build --if-present
+            - run: npm test
+            - run: npm publish
+              if: startsWith(github.ref, 'refs/tags/v')
